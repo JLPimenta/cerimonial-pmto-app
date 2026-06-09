@@ -34,27 +34,24 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install dependencies
-        working-directory: mobile
         run: npm ci
 
       - name: Expo Prebuild (Android)
-        working-directory: mobile
         env:
           APP_ENV: homologacao
         run: npx expo prebuild --platform android --no-install --clean
 
-      - name: Patch gradle.properties (UTF-8 + memory)
-        working-directory: mobile/android
+      - name: Patch gradle.properties (memory)
+        working-directory: android
         run: |
-          echo "android.useAndroidX=true" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> gradle.properties
 
       - name: Make gradlew executable
-        working-directory: mobile/android
+        working-directory: android
         run: chmod +x gradlew
 
       - name: Build Release APK
-        working-directory: mobile/android
+        working-directory: android
         env:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
@@ -64,7 +61,7 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.version_name || '1.0.0' }}"
           DATE=$(date +'%Y%m%d')
-          APK_PATH=$(find mobile/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
           NEW_NAME="cerimonial-pmto-homologacao-v${VERSION}-${DATE}.apk"
           cp "$APK_PATH" "$NEW_NAME"
           echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
