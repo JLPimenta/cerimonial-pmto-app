@@ -77,14 +77,21 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
 
+      # O ExpoAutolinkingPlugin executa node com workingDir=android/ e chama:
+      #   require('expo/bin/autolinking')
+      # O Node resolve require() a partir do workingDir. Como android/ não tem
+      # node_modules próprio, criamos um symlink para o node_modules da raiz.
+      - name: Symlink node_modules para android/
+        run: ln -sf ${{ github.workspace }}/node_modules ${{ github.workspace }}/android/node_modules
+
       - name: Build Release APK
         working-directory: android
         env:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
           EXPO_PROJECT_ROOT: ${{ github.workspace }}
-        # --stacktrace: identificar a task exata que chama o node com falha
-        run: ./gradlew assembleRelease --no-daemon --stacktrace 2>&1
+        # --warn: logs de erro sem overhead de --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --warn 2>&1
 
       - name: Rename APK
         run: |
