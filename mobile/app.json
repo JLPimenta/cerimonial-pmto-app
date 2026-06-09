@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Cerimonial PMTO",
+    "slug": "cerimonial-pmto",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "br.gov.to.pmto.cerimonial",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#15407C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "br.gov.to.pmto.cerimonial",
+      "supportsTablet": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": []
+  }
+}

@@ -1,0 +1,87 @@
+name: Build Homologação (APK)
+
+on:
+  push:
+    branches: [main, develop, homologacao]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Versão (ex: 1.0.1)'
+        required: false
+        default: '1.0.0'
+
+jobs:
+  build-android:
+    name: Android APK – Homologação
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Expo Prebuild (Android)
+        working-directory: mobile
+        env:
+          APP_ENV: homologacao
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Patch gradle.properties (UTF-8 + memory)
+        working-directory: mobile/android
+        run: |
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> gradle.properties
+
+      - name: Make gradlew executable
+        working-directory: mobile/android
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        working-directory: mobile/android
+        env:
+          APP_ENV: homologacao
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+        run: ./gradlew assembleRelease --no-daemon -q
+
+      - name: Rename APK
+        run: |
+          VERSION="${{ github.event.inputs.version_name || '1.0.0' }}"
+          DATE=$(date +'%Y%m%d')
+          APK_PATH=$(find mobile/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          NEW_NAME="cerimonial-pmto-homologacao-v${VERSION}-${DATE}.apk"
+          cp "$APK_PATH" "$NEW_NAME"
+          echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK-Homologacao
+          path: ${{ env.APK_FILE }}
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "## ✅ Build concluído" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Arquivo:** \`${{ env.APK_FILE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Baixe o APK em **Actions → este workflow → Artifacts**." >> $GITHUB_STEP_SUMMARY
