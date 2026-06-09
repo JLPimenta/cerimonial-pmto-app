@@ -17,7 +17,7 @@ import { useCustomData } from '../hooks/useCustomData';
 type Props = NativeStackScreenProps<RootStackParams, 'Home'>;
 
 export function HomeScreen({ navigation }: Props) {
-  const { ceremonies } = useCeremonies();
+  const { ceremonies, loading } = useCeremonies();
   const { ceremonyTypeById } = useCustomData();
 
   return (
@@ -42,10 +42,12 @@ export function HomeScreen({ navigation }: Props) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>Próximas solenidades</Text>
-          <Text style={styles.listCount}>{ceremonies.length} agendadas</Text>
-        </View>
+        {!loading && ceremonies.length > 0 && (
+          <View style={styles.listHeader}>
+            <Text style={styles.listTitle}>Próximas solenidades</Text>
+            <Text style={styles.listCount}>{ceremonies.length} agendadas</Text>
+          </View>
+        )}
 
         {ceremonies.map(s => {
           const ti = ceremonyTypeById(s.tipo);
@@ -62,6 +64,18 @@ export function HomeScreen({ navigation }: Props) {
             />
           );
         })}
+
+        {!loading && ceremonies.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Icon name="event_available" size={36} color={Colors.azul} />
+            </View>
+            <Text style={styles.emptyTitle}>Nenhuma solenidade agendada</Text>
+            <Text style={styles.emptySub}>
+              Toque no botão abaixo para criar a primeira solenidade e organizar o protocolo completo.
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       <Fab icon="add" label="Nova solenidade" onPress={() => navigation.navigate('NewCeremony')} />
@@ -140,4 +154,8 @@ const styles = StyleSheet.create({
   authCount: { fontSize: 12, color: Colors.txt2, fontWeight: '600' },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaTxt: { fontSize: 12.5, color: Colors.txt2 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 64, paddingHorizontal: 32 },
+  emptyIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: Colors.azulTint, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: Colors.txt, marginBottom: 10, textAlign: 'center' },
+  emptySub: { fontSize: 13.5, color: Colors.txt2, textAlign: 'center', lineHeight: 20 },
 });
