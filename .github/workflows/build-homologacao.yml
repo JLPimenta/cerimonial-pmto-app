@@ -77,12 +77,10 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
 
-      # O ExpoAutolinkingPlugin executa node com workingDir=android/ e chama:
-      #   require('expo/bin/autolinking')
-      # O Node resolve require() a partir do workingDir. Como android/ não tem
-      # node_modules próprio, criamos um symlink para o node_modules da raiz.
-      - name: Symlink node_modules para android/
-        run: ln -sf ${{ github.workspace }}/node_modules ${{ github.workspace }}/android/node_modules
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y coreutils findutils
 
       - name: Build Release APK
         working-directory: android
