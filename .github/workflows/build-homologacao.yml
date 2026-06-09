@@ -90,7 +90,7 @@ jobs:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
           EXPO_PROJECT_ROOT: ${{ github.workspace }}
-        run: ./gradlew assembleRelease --no-daemon --warn 2>&1
+        run: ./gradlew assembleRelease --no-daemon --info 2>&1
 
       - name: Rename APK
         run: |
@@ -107,6 +107,16 @@ jobs:
           name: APK-Homologacao
           path: ${{ env.APK_FILE }}
           retention-days: 30
+
+      - name: Upload Build Reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            android/build/reports
+            android/app/build/reports
+          retention-days: 7
 
       - name: Build summary
         run: |
