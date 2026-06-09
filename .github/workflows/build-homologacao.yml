@@ -69,6 +69,8 @@ jobs:
       - name: Patch gradle.properties (memory + paralelismo)
         working-directory: android
         run: |
+          # Garante uma quebra de linha caso o prebuild do Expo gere o arquivo sem new-line no final
+          echo "" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
           echo "org.gradle.caching=true" >> gradle.properties
@@ -90,7 +92,7 @@ jobs:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
           EXPO_PROJECT_ROOT: ${{ github.workspace }}
-        run: ./gradlew assembleRelease --no-daemon --info 2>&1
+        run: ./gradlew assembleRelease --no-daemon --warn 2>&1
 
       - name: Rename APK
         run: |
