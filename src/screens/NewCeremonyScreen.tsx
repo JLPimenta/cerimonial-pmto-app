@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParams } from '../navigation/types';
 import { Colors } from '../constants/colors';
@@ -23,29 +24,63 @@ import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 import { hojeISO, agoraHM } from '../domain/dateUtils';
 import { TIPOS_SOLENIDADE, ICONES_SOLENIDADE } from '../domain/ceremonyTypes';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCeremonies } from '../hooks/useCeremonies';
 import { useCustomData } from '../hooks/useCustomData';
 import type { Ceremony } from '../domain/types';
 
 type Props = NativeStackScreenProps<RootStackParams, 'NewCeremony'>;
 
-export function NewCeremonyScreen({ navigation }: Props) {
-  const { addCeremony } = useCeremonies();
+export function NewCeremonyScreen({ route, navigation }: Props) {
+  const { ceremonies, addCeremony, updateCeremony } = useCeremonies();
   const { customCeremonyTypes, allCeremonyTypes, addCeremonyType, removeCeremonyType } = useCustomData();
 
-  const [tipo, setTipo] = useState('formatura');
-  const [nome, setNome] = useState('');
-  const [data, setData] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 3);
-    return d.toISOString().split('T')[0];
-  });
-  const [hora, setHora] = useState('09:00');
-  const [local, setLocal] = useState('');
-  const [cidade, setCidade] = useState('Palmas/TO');
-  const [tipoLocal, setTipoLocal] = useState<'aberto' | 'auditorio'>('aberto');
-  const [mesaExpressa, setMesaExpressa] = useState(false);
-  const [cadeiras, setCadeiras] = useState(15);
+  const editId = route.params?.id;
+  const solToEdit = editId ? ceremonies.find(c => c.id === editId) : null;
+
+  const [tipo, setTipo] = useState(solToEdit ? solToEdit.tipo : 'formatura');
+  const [nome, setNome] = useState(solToEdit ? solToEdit.nome : '');
+  const [data, setData] = useState(solToEdit ? solToEdit.data : '');
+  const [hora, setHora] = useState(solToEdit ? solToEdit.hora : '');
+  const [local, setLocal] = useState(solToEdit ? solToEdit.local : '');
+  const [cidade, setCidade] = useState(solToEdit ? solToEdit.cidade : '');
+  const [tipoLocal, setTipoLocal] = useState<'aberto' | 'auditorio'>(solToEdit ? solToEdit.tipoLocal : 'aberto');
+  const [mesaExpressa, setMesaExpressa] = useState(solToEdit ? solToEdit.mesaExpressa : false);
+  const [cadeiras, setCadeiras] = useState(solToEdit ? solToEdit.totalCadeiras : 15);
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (selectedDate) {
+      const yy = selectedDate.getFullYear();
+      const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(selectedDate.getDate()).padStart(2, '0');
+      setData(`${yy}-${mm}-${dd}`);
+      if (Platform.OS === 'ios') setShowDatePicker(false);
+    }
+  };
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') setShowTimePicker(false);
+    if (selectedTime) {
+      const hh = String(selectedTime.getHours()).padStart(2, '0');
+      const mm = String(selectedTime.getMinutes()).padStart(2, '0');
+      setHora(`${hh}:${mm}`);
+      if (Platform.OS === 'ios') setShowTimePicker(false);
+    }
+  };
+
+  const onChangeHora = (text: string) => {
+    let t = text.replace(/\D/g, '');
+    if (t.length > 2) {
+      t = t.substring(0, 2) + ':' + t.substring(2, 4);
+    }
+    setHora(t);
+  };
+
+  const dataDisplay = data ? data.split('-').reverse().join('/') : '';
 
   const [tipoSheet, setTipoSheet] = useState(false);
   const [tipoMode, setTipoMode] = useState<'list' | 'form'>('list');
@@ -57,9 +92,9 @@ export function NewCeremonyScreen({ navigation }: Props) {
 
   const hoje = hojeISO();
   const agora = agoraHM();
-  const dataNoPassado = data < hoje;
-  const horaNoPassado = data === hoje && hora < agora;
-  const valido = nome.trim().length > 2 && local.trim().length > 1 && !dataNoPassado && !horaNoPassado;
+  const dataNoPassado = data ? data < hoje : false;
+  const horaNoPassado = data === hoje && hora ? hora < agora : false;
+  const valido = nome.trim().length > 2 && local.trim().length > 1 && data !== '' && hora !== '' && cidade.trim().length > 1 && !dataNoPassado && !horaNoPassado;
   const termo = tipoLocal === 'auditorio' && mesaExpressa ? 'Mesa de Honra' : 'Tribuna de Honra';
 
   const customSel = customCeremonyTypes.find(t => t.id === tipo) ?? null;
@@ -88,30 +123,47 @@ export function NewCeremonyScreen({ navigation }: Props) {
 
   const criar = () => {
     if (!valido) return;
-    const ceremony: Ceremony = {
-      id: 's' + Date.now(),
-      tipo,
-      nome: nome.trim(),
-      data,
-      hora,
-      local: local.trim(),
-      cidade,
-      tipoLocal,
-      mesaExpressa,
-      totalCadeiras: cadeiras,
-      presentIds: ['cmtgeral'],
-      override: null,
-    };
-    addCeremony(ceremony);
-    navigation.replace('CeremonyDetail', { id: ceremony.id });
-    setTimeout(() => navigation.navigate('Authorities', { id: ceremony.id }), 100);
+    
+    if (solToEdit) {
+      updateCeremony({
+        ...solToEdit,
+        tipo,
+        nome: nome.trim(),
+        data,
+        hora,
+        local: local.trim(),
+        cidade,
+        tipoLocal,
+        mesaExpressa,
+        totalCadeiras: cadeiras,
+      });
+      navigation.goBack();
+    } else {
+      const ceremony: Ceremony = {
+        id: 's' + Date.now(),
+        tipo,
+        nome: nome.trim(),
+        data,
+        hora,
+        local: local.trim(),
+        cidade,
+        tipoLocal,
+        mesaExpressa,
+        totalCadeiras: cadeiras,
+        presentIds: ['cmtgeral'],
+        override: null,
+      };
+      addCeremony(ceremony);
+      navigation.replace('CeremonyDetail', { id: ceremony.id });
+      setTimeout(() => navigation.navigate('Authorities', { id: ceremony.id }), 100);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Header title="Nova solenidade" subtitle="Passo único · poucos toques" onBack={() => navigation.goBack()} />
+      <Header title={solToEdit ? "Editar solenidade" : "Nova solenidade"} subtitle={solToEdit ? "Altere as informações" : "Passo único · poucos toques"} onBack={() => navigation.goBack()} />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" enableOnAndroid={true} extraScrollHeight={30}>
 
         <Field label="Tipo de solenidade">
           <View style={styles.tiposGrid}>
@@ -150,26 +202,35 @@ export function NewCeremonyScreen({ navigation }: Props) {
         <View style={styles.dateRow}>
           <View style={{ flex: 1.4 }}>
             <Field label="Data" hint={dataNoPassado ? '⚠ Selecione hoje ou uma data futura.' : undefined}>
-              <TextInput
-                value={data}
-                onChangeText={setData}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor={Colors.txt3}
-                style={[inputStyle, { borderColor: dataNoPassado ? Colors.danger : Colors.bordaForte }]}
-                keyboardType="numeric"
-              />
+              <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
+                <View pointerEvents="none">
+                  <TextInput
+                    value={dataDisplay}
+                    placeholder="DD/MM/AAAA"
+                    placeholderTextColor={Colors.txt3}
+                    style={[inputStyle, { borderColor: dataNoPassado ? Colors.danger : Colors.bordaForte, color: Colors.txt }]}
+                    editable={false}
+                  />
+                </View>
+              </TouchableOpacity>
             </Field>
           </View>
           <View style={{ flex: 1 }}>
             <Field label="Hora" hint={!dataNoPassado && horaNoPassado ? '⚠ Horário já passou.' : undefined}>
-              <TextInput
-                value={hora}
-                onChangeText={setHora}
-                placeholder="HH:MM"
-                placeholderTextColor={Colors.txt3}
-                style={[inputStyle, { borderColor: !dataNoPassado && horaNoPassado ? Colors.danger : Colors.bordaForte }]}
-                keyboardType="numeric"
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TextInput
+                  value={hora}
+                  onChangeText={onChangeHora}
+                  placeholder="HH:MM"
+                  placeholderTextColor={Colors.txt3}
+                  style={[inputStyle, { flex: 1, borderColor: !dataNoPassado && horaNoPassado ? Colors.danger : Colors.bordaForte, paddingRight: 40 }]}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+                <TouchableOpacity onPress={() => setShowTimePicker(true)} style={{ position: 'absolute', right: 8, padding: 4 }}>
+                  <Icon name="schedule" size={20} color={Colors.txt3} />
+                </TouchableOpacity>
+              </View>
             </Field>
           </View>
         </View>
@@ -179,7 +240,7 @@ export function NewCeremonyScreen({ navigation }: Props) {
         </Field>
 
         <Field label="Cidade / UF">
-          <TextInput value={cidade} onChangeText={setCidade} style={inputStyle} />
+          <TextInput value={cidade} onChangeText={setCidade} placeholder="Ex.: Palmas/TO" placeholderTextColor={Colors.txt3} style={inputStyle} />
         </Field>
 
         <Field label="Onde será realizada">
@@ -220,11 +281,11 @@ export function NewCeremonyScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
         </Field>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <Button full size="lg" variant="primary" icon="check_circle" onPress={criar} disabled={!valido}>
-          Criar solenidade
+          {solToEdit ? "Salvar alterações" : "Criar solenidade"}
         </Button>
       </View>
 
@@ -256,8 +317,12 @@ export function NewCeremonyScreen({ navigation }: Props) {
               </View>
             </Field>
             <View style={styles.formActions}>
-              <Button full variant="ghost" onPress={() => setTipoMode('list')}>Cancelar</Button>
-              <Button full variant="primary" icon="check" onPress={salvarTipo} disabled={fTitulo.trim().length < 2 || !fIcone}>Salvar</Button>
+              <View style={{ flex: 1 }}>
+                <Button full variant="ghost" onPress={() => setTipoMode('list')}>Cancelar</Button>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button full variant="primary" icon="check" onPress={salvarTipo} disabled={fTitulo.trim().length < 2 || !fIcone}>Salvar</Button>
+              </View>
             </View>
           </View>
         ) : (
@@ -322,6 +387,26 @@ export function NewCeremonyScreen({ navigation }: Props) {
         message={confirmDelTipo ? `"${confirmDelTipo.label}" será removido. Esta ação não pode ser desfeita.` : ''}
         confirmLabel="Excluir"
       />
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={data ? new Date(data + 'T12:00:00') : new Date()}
+          mode="date"
+          display="default"
+          onValueChange={onDateChange}
+          onDismiss={() => setShowDatePicker(false)}
+        />
+      )}
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={hora ? new Date(`1970-01-01T${hora}:00`) : new Date()}
+          mode="time"
+          display="default"
+          onValueChange={onTimeChange}
+          onDismiss={() => setShowTimePicker(false)}
+        />
+      )}
     </View>
   );
 }

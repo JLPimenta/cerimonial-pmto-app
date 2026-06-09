@@ -35,7 +35,10 @@ export function TribunaScreen({ route, navigation }: Props) {
     ? sol.override.map(id => authById(id)).filter(Boolean) as Authority[]
     : prot.ordem;
 
-  const cadeiras = disporCadeiras(ordemHonra, sol.totalCadeiras);
+  const naTribuna = ordemHonra.slice(0, sol.totalCadeiras);
+  const naPlateia = ordemHonra.slice(sol.totalCadeiras);
+
+  const cadeiras = disporCadeiras(naTribuna, sol.totalCadeiras);
 
   const rankPorId: Record<string, number> = {};
   ordemHonra.forEach((a, i) => { rankPorId[a.id] = i + 1; });
@@ -81,6 +84,7 @@ export function TribunaScreen({ route, navigation }: Props) {
               protocolo={prot}
               rankPorId={rankPorId}
               layout="blocos"
+              plateia={naPlateia}
             />
           ) : (
             <TribunaLista

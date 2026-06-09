@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   Animated,
   StyleSheet,
-  ScrollView,
   TouchableWithoutFeedback,
+  Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Colors } from '../../constants/colors';
 import { Icon } from './Icon';
 
@@ -54,9 +55,9 @@ export function Sheet({ open, onClose, title, children }: Props) {
                   </TouchableOpacity>
                 </View>
               )}
-              <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+              <KeyboardAwareScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled" enableOnAndroid={true} extraScrollHeight={30}>
                 {children}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Animated.View>
           </TouchableWithoutFeedback>
         </View>

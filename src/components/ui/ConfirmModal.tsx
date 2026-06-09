@@ -41,10 +41,14 @@ export function ConfirmModal({
                 {message ? <Text style={styles.message}>{message}</Text> : null}
               </View>
               <View style={styles.actions}>
-                <Button full variant="ghost" onPress={onClose}>Cancelar</Button>
-                <Button full variant={danger ? 'danger' : 'primary'} onPress={onConfirm}>
-                  {confirmLabel}
-                </Button>
+                <View style={{ flex: 1 }}>
+                  <Button full variant="ghost" onPress={onClose}>Cancelar</Button>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button full variant={danger ? 'danger' : 'primary'} onPress={onConfirm}>
+                    {confirmLabel}
+                  </Button>
+                </View>
               </View>
             </View>
           </TouchableWithoutFeedback>

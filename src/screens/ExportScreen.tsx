@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, Alert, Platform, TouchableOpacity } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParams } from '../navigation/types';
 import { Colors } from '../constants/colors';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/ui/Icon';
-import { computarProtocolo } from '../domain/protocolRules';
+import { computarProtocolo, disporCadeiras } from '../domain/protocolRules';
 import { ordemPronunciamentos } from '../domain/speechOrder';
 import { fmtData, termoTribuna } from '../domain/dateUtils';
 import { ESFERA } from '../domain/catalog';
@@ -22,6 +25,13 @@ export function ExportScreen({ route, navigation }: Props) {
   const { ceremonies } = useCeremonies();
   const { authById, ceremonyTypeById } = useCustomData();
   const [toast, setToast] = useState<string | null>(null);
+
+  const resetarPasta = async () => {
+    if (Platform.OS === 'android') {
+      await AsyncStorage.removeItem('defaultDownloadDir');
+      showToast('Pasta de salvamento redefinida. Baixe novamente para escolher.');
+    }
+  };
 
   const sol = ceremonies.find(c => c.id === route.params.id);
   if (!sol) return null;
@@ -39,31 +49,127 @@ export function ExportScreen({ route, navigation }: Props) {
 
   const gerarPDF = async () => {
     try {
-      const html = buildPdfHtml(sol, ti, prot, fala, termo);
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar PDF' });
+      const cadeiras = disporCadeiras(prot.ordem.slice(0, sol.totalCadeiras), sol.totalCadeiras, sol.customLayout, id => authById(id));
+      const plateia = prot.ordem.slice(sol.totalCadeiras);
+      const html = buildPdfHtml(sol, ti, prot, cadeiras, plateia, termo);
+      const { base64 } = await Print.printToFileAsync({ html, base64: true });
+      if (!base64) throw new Error('Falha ao gerar base64');
+      
+      if (Platform.OS === 'android') {
+        let directoryUri = await AsyncStorage.getItem('defaultDownloadDir');
+        
+        if (!directoryUri) {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            directoryUri = permissions.directoryUri;
+            await AsyncStorage.setItem('defaultDownloadDir', directoryUri);
+          } else {
+            return; // Cancelled
+          }
+        }
+        
+        try {
+          const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(directoryUri, `Mapa_Tribuna_${sol.id}.pdf`, 'application/pdf');
+          await FileSystem.writeAsStringAsync(newFileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+          showToast('Salvo em seus arquivos (Documentos).');
+          
+          try {
+            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              data: newFileUri,
+              flags: 1,
+              type: 'application/pdf'
+            });
+          } catch (launchErr) {
+            console.log('Nenhum app de PDF encontrado', launchErr);
+          }
+        } catch (e) {
+          // If permission was revoked or folder deleted, ask again
+          await AsyncStorage.removeItem('defaultDownloadDir');
+          Alert.alert('Aviso', 'A pasta de destino não está mais acessível. Tente novamente para selecionar uma nova pasta.');
+        }
       } else {
-        showToast('PDF gerado com sucesso.');
+        const fileUri = `${FileSystem.documentDirectory}Mapa_Tribuna_${sol.id}.pdf`;
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, { UTI: 'com.adobe.pdf', mimeType: 'application/pdf', dialogTitle: 'Salvar PDF' });
+        } else {
+          showToast('PDF salvo.');
+        }
       }
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível gerar o PDF.');
+    } catch (e: any) {
+      Alert.alert('Erro Detalhado', String(e?.stack || e?.message || e));
     }
   };
 
   const gerarRoteiro = async () => {
     try {
       const html = buildRoteiroHtml(sol, prot, fala, termo);
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Roteiro' });
+      const { base64 } = await Print.printToFileAsync({ html, base64: true });
+      if (!base64) throw new Error('Falha ao gerar base64');
+      
+      if (Platform.OS === 'android') {
+        let directoryUri = await AsyncStorage.getItem('defaultDownloadDir');
+        
+        if (!directoryUri) {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            directoryUri = permissions.directoryUri;
+            await AsyncStorage.setItem('defaultDownloadDir', directoryUri);
+          } else {
+            return; // Cancelled
+          }
+        }
+        
+        try {
+          const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(directoryUri, `Roteiro_${sol.id}.pdf`, 'application/pdf');
+          await FileSystem.writeAsStringAsync(newFileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+          showToast('Salvo em seus arquivos (Documentos).');
+          
+          try {
+            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              data: newFileUri,
+              flags: 1,
+              type: 'application/pdf'
+            });
+          } catch (launchErr) {
+            console.log('Nenhum app de PDF encontrado', launchErr);
+          }
+        } catch (e) {
+          // If permission was revoked or folder deleted, ask again
+          await AsyncStorage.removeItem('defaultDownloadDir');
+          Alert.alert('Aviso', 'A pasta de destino não está mais acessível. Tente novamente para selecionar uma nova pasta.');
+        }
       } else {
-        showToast('Roteiro gerado com sucesso.');
+        const fileUri = `${FileSystem.documentDirectory}Roteiro_${sol.id}.pdf`;
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, { UTI: 'com.adobe.pdf', mimeType: 'application/pdf', dialogTitle: 'Salvar Roteiro' });
+        } else {
+          showToast('Roteiro salvo.');
+        }
       }
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível gerar o roteiro.');
+    } catch (e: any) {
+      Alert.alert('Erro Detalhado', String(e?.stack || e?.message || e));
+    }
+  };
+
+  const compartilharResumo = async () => {
+    const msg = `*Solenidade: ${sol.nome}*\n` +
+      `Data: ${fmtData(sol.data)} às ${sol.hora}\n` +
+      `Local: ${sol.cidade}\n\n` +
+      `*${termo}*\n` +
+      prot.ordem.slice(0, sol.totalCadeiras).map((a: any, i: number) => `${i + 1}. ${a.nome}`).join('\n') +
+      `\n\n*Pronunciamentos*\n` +
+      fala.map((f: any, i: number) => `${f.momento}: ${f.autoridade.nome}`).join('\n');
+      
+    try {
+      // Usar a API do React Native para texto
+      const { Share } = require('react-native');
+      await Share.share({ message: msg });
+    } catch (e: any) {
+      Alert.alert('Erro Detalhado', String(e?.stack || e?.message || e));
     }
   };
 
@@ -108,13 +214,19 @@ export function ExportScreen({ route, navigation }: Props) {
         <View style={{ gap: 10 }}>
           {opt('picture_as_pdf', 'Mapa da tribuna em PDF', 'Planta + lista de precedência, pronto para imprimir', 'ouro', gerarPDF)}
           {opt('description', 'Roteiro do mestre de cerimônias', 'Sequência, pronunciamentos e nominata', 'azul', gerarRoteiro)}
-          {opt('share', 'Compartilhar resumo', 'Link/texto via WhatsApp, e-mail ou impressão', 'azul', () => showToast('Em breve'))}
+          {opt('share', 'Compartilhar resumo', 'Link/texto via WhatsApp, e-mail ou impressão', 'azul', compartilharResumo)}
         </View>
 
         <View style={styles.offlineNote}>
           <Icon name="wifi_off" size={15} color={Colors.txt3} />
           <Text style={styles.offlineText}>Funciona offline — gera localmente no dispositivo</Text>
         </View>
+
+        {Platform.OS === 'android' && (
+          <TouchableOpacity onPress={resetarPasta} style={{ alignItems: 'center', marginTop: 10 }}>
+            <Text style={{ fontSize: 12, color: Colors.azul, fontWeight: '600' }}>Alterar pasta de salvamento</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {toast && (
@@ -138,7 +250,10 @@ function PreviewMeta({ icon, txt }: { icon: string; txt: string }) {
 
 // ─── HTML Generators ─────────────────────────────────────────────────────────
 
-function buildPdfHtml(sol: any, ti: any, prot: any, fala: any[], termo: string): string {
+function buildPdfHtml(sol: any, ti: any, prot: any, cadeiras: any[], plateia: any[], termo: string): string {
+  const rankPorId: Record<string, number> = {};
+  prot.ordem.forEach((a: any, i: number) => { rankPorId[a.id] = i + 1; });
+
   const rows = prot.ordem.map((a: any, i: number) => `
     <tr style="background:${i === 0 ? '#F7EFDC' : i % 2 === 0 ? '#f9f9f9' : '#fff'}">
       <td style="padding:8px 12px;font-weight:700;color:${i === 0 ? '#8A6314' : '#15407C'}">${i + 1}</td>
@@ -148,19 +263,66 @@ function buildPdfHtml(sol: any, ti: any, prot: any, fala: any[], termo: string):
     </tr>
   `).join('');
 
+  const anfId = prot.anfitriao?.id;
+  const coId = prot.coanfitriao?.id;
+
+  const cadeirasHtml = cadeiras.map(c => {
+    let cls = 'chair-convidado';
+    if (!c.autoridade) cls = 'empty';
+    else if (c.autoridade.id === anfId) cls = 'chair-anfitriao';
+    else if (c.autoridade.id === coId) cls = 'chair-coanfitriao';
+    
+    return `
+      <div class="chair ${cls}">
+        ${c.autoridade ? rankPorId[c.autoridade.id] : ''}
+      </div>
+    `;
+  }).join('');
+
+  const plateiaHtml = plateia.length > 0 ? `
+    <div class="diagram-container" style="margin-top: 40px; border-top: 2px dashed #cfd4db; padding-top: 30px;">
+      <div class="plateia-title">PLATEIA PREFERENCIAL</div>
+      <div class="chairs-row" style="margin-bottom:0">
+        ${plateia.map(a => `
+          <div class="chair chair-up">${rankPorId[a.id]}</div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
-    body{font-family:Georgia,serif;margin:32px;color:#1B2230}
+    @page { margin: 20mm; }
+    body{font-family:Georgia,serif;margin:0;color:#1B2230}
     h1{font-size:22px;margin:0 0 4px}
     .sub{font-size:13px;color:#4A5366;margin-bottom:20px}
     .bar{height:6px;background:linear-gradient(90deg,#15407C,#B8841C);border-radius:3px;margin-bottom:16px}
-    table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:13px}
+    table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:13px;margin-top:40px}
     th{text-align:left;padding:8px 12px;background:#EAF0F9;color:#15407C;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    
+    .diagram-container { margin: 30px 0; text-align: center; }
+    .chairs-row { display: flex; justify-content: center; gap: 4px; margin-bottom: -2px; flex-wrap: nowrap; z-index: 2; position: relative; width: 100%; }
+    .chair { flex: 0 1 34px; height: 32px; min-width: 16px; border: 2px solid #15407C; border-radius: 8px 8px 0 0; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 13px; font-weight: 800; box-shadow: 0 -2px 4px rgba(0,0,0,0.06); overflow: hidden; }
+    .chair-convidado { background: #fff; border-color: #15407C; color: #15407C; }
+    .chair-anfitriao { background: #F7EFDC; border-color: #B8841C; color: #8A6314; }
+    .chair-coanfitriao { background: #EAF0F9; border-color: #15407C; color: #15407C; }
+    .chair-up { border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+    .empty { background: #f0f2f5; border-color: #cfd4db; border-style: dashed; color: transparent; box-shadow: none; }
+    .table-surface { background: #15407C; color: #fff; padding: 22px; border-radius: 4px; font-family: sans-serif; font-size: 14px; font-weight: bold; letter-spacing: 5px; text-transform: uppercase; width: 100%; box-sizing: border-box; border-top: 6px solid #B8841C; box-shadow: 0 6px 12px rgba(21,64,124,0.25); z-index: 1; position: relative; }
+    .plateia-title { font-family: sans-serif; font-size: 11px; font-weight: 800; color: #828B9C; letter-spacing: 1px; margin-bottom: 20px; text-transform: uppercase; }
   </style></head><body>
     <div class="bar"></div>
     <p style="font-size:11px;color:#828B9C;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px">Polícia Militar do Estado do Tocantins</p>
     <h1>${sol.nome}</h1>
-    <p class="sub">${fmtData(sol.data)} · ${sol.hora} · ${sol.cidade} · ${termo} (${sol.totalCadeiras} cadeiras)</p>
-    <p style="font-size:13px;margin:0 0 16px"><strong>${prot.papelAnfitrião}:</strong> ${prot.anfitriao?.nome ?? '—'}</p>
+    <p class="sub">${fmtData(sol.data)} · ${sol.hora} · ${sol.cidade}</p>
+    
+    <div class="diagram-container">
+      <div class="chairs-row">
+        ${cadeirasHtml}
+      </div>
+      <div class="table-surface">${termo}</div>
+    </div>
+    ${plateiaHtml}
+
     <table><thead><tr><th>#</th><th>Autoridade</th><th>Papel</th><th>Posição</th></tr></thead><tbody>${rows}</tbody></table>
   </body></html>`;
 }
@@ -190,24 +352,24 @@ function buildRoteiroHtml(sol: any, prot: any, fala: any[], termo: string): stri
   </body></html>`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  scroll: { flex: 1 },
-  content: { padding: 14, paddingBottom: 24, gap: 14 },
-  previewBar: { height: 7, backgroundColor: Colors.azul },
-  preview: { padding: 16, paddingHorizontal: 17 },
-  previewOrg: { fontSize: 10.5, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', color: Colors.txt3 },
-  previewNome: { fontSize: 18, fontWeight: '600', color: Colors.txt, lineHeight: 24, marginVertical: 6 },
-  previewMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, rowGap: 14, marginBottom: 12 },
-  anfBox: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, paddingHorizontal: 12, backgroundColor: Colors.ouroTint, borderRadius: 12 },
-  anfText: { fontSize: 12.5, color: Colors.txt2 },
-  optRow: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, paddingHorizontal: 15 },
-  optIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  optText: { flex: 1 },
-  optTitle: { fontSize: 15, fontWeight: '800', color: Colors.txt },
-  optSub: { fontSize: 12.5, color: Colors.txt3, marginTop: 1 },
-  offlineNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 4 },
-  offlineText: { fontSize: 11.5, color: Colors.txt3 },
+const styles = {
+  container: { flex: 1, backgroundColor: Colors.bg } as any,
+  scroll: { flex: 1 } as any,
+  content: { padding: 14, paddingBottom: 24, gap: 14 } as any,
+  previewBar: { height: 7, backgroundColor: Colors.azul } as any,
+  preview: { padding: 16, paddingHorizontal: 17 } as any,
+  previewOrg: { fontSize: 10.5, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', color: Colors.txt3 } as any,
+  previewNome: { fontSize: 18, fontWeight: '600', color: Colors.txt, lineHeight: 24, marginVertical: 6 } as any,
+  previewMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, rowGap: 14, marginBottom: 12 } as any,
+  anfBox: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, paddingHorizontal: 12, backgroundColor: Colors.ouroTint, borderRadius: 12 } as any,
+  anfText: { fontSize: 12.5, color: Colors.txt2 } as any,
+  optRow: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, paddingHorizontal: 15 } as any,
+  optIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' } as any,
+  optText: { flex: 1 } as any,
+  optTitle: { fontSize: 15, fontWeight: '800', color: Colors.txt } as any,
+  optSub: { fontSize: 12.5, color: Colors.txt3, marginTop: 1 } as any,
+  offlineNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 4 } as any,
+  offlineText: { fontSize: 11.5, color: Colors.txt3 } as any,
   toast: {
     position: 'absolute',
     left: 16,
@@ -225,6 +387,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 30,
     elevation: 10,
-  },
-  toastText: { color: '#fff', fontSize: 13.5, fontWeight: '600', flex: 1 },
-});
+  } as any,
+  toastText: { color: '#fff', fontSize: 13.5, fontWeight: '600', flex: 1 } as any,
+};

@@ -11,6 +11,8 @@ const ICON_MAP: Record<string, ComponentProps<typeof MaterialIcons>['name']> = {
   'menu_book': 'menu-book',
   'menu-book': 'menu-book',
   'event': 'event',
+  'event_available': 'event-available',
+  'event-available': 'event-available',
   'location_on': 'location-on',
   'location-on': 'location-on',
   'chevron_right': 'chevron-right',

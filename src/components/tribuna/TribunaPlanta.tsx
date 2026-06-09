@@ -5,7 +5,7 @@ import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
 import { Seat, curtoLabel } from './Seat';
-import type { SeatArrangement, ProtocolResult } from '../../domain/types';
+import type { SeatArrangement, ProtocolResult, Authority } from '../../domain/types';
 
 export type TribunaLayout = 'linha' | 'arco' | 'blocos';
 
@@ -18,6 +18,7 @@ type Props = {
   seatStyle?: 'cartao' | 'compacto';
   showNumbers?: boolean;
   showPodium?: boolean;
+  plateia?: Authority[];
 };
 
 export function TribunaPlanta({
@@ -29,6 +30,7 @@ export function TribunaPlanta({
   seatStyle = 'cartao',
   showNumbers = true,
   showPodium = true,
+  plateia = [],
 }: Props) {
   const anfId = protocolo.anfitriao?.id ?? null;
   const coId = protocolo.coanfitriao?.id ?? null;
@@ -70,6 +72,7 @@ export function TribunaPlanta({
           </View>
         )}
         <OrientacaoBar />
+        <PlateiaSection plateia={plateia} rankPorId={rankPorId} />
       </View>
     );
   }
@@ -112,6 +115,7 @@ export function TribunaPlanta({
       </View>
 
       <OrientacaoBar />
+      <PlateiaSection plateia={plateia} rankPorId={rankPorId} />
     </View>
   );
 }
@@ -147,6 +151,24 @@ function OrientacaoBar() {
   );
 }
 
+function PlateiaSection({ plateia, rankPorId }: { plateia: Authority[]; rankPorId: Record<string, number> }) {
+  if (plateia.length === 0) return null;
+  return (
+    <View style={styles.plateiaBox}>
+      <Text style={styles.plateiaTitle}>Plateia Preferencial ({plateia.length})</Text>
+      <View style={styles.plateiaGrid}>
+        {plateia.map(a => (
+          <View key={a.id} style={styles.plateiaItem}>
+            <Text style={styles.seatRank}>{rankPorId[a.id]}</Text>
+            <Avatar ini={a.ini} size={28} tom="cinza" />
+            <Text style={styles.plateiaLabel} numberOfLines={2}>{curtoLabel(a.id, a.nome)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   hint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 },
   hintText: { fontSize: 11, color: Colors.txt3 },
@@ -168,4 +190,15 @@ const styles = StyleSheet.create({
   seatRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 12, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borda },
   seatRank: { width: 18, textAlign: 'center', fontSize: 12, fontWeight: '800', color: Colors.txt3 },
   seatLabel: { flex: 1, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  plateiaBox: {
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: Colors.bordaForte,
+    borderStyle: 'dashed',
+    gap: 16,
+  },
+  plateiaTitle: { fontSize: 12, fontWeight: '800', color: Colors.txt, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, textAlign: 'center' },
+  plateiaGrid: { gap: 8 },
+  plateiaItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borda },
+  plateiaLabel: { flex: 1, fontSize: 12, fontWeight: '600', color: Colors.txt2 },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useReducer } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParams } from '../navigation/types';
 import { Colors } from '../constants/colors';
@@ -44,8 +44,8 @@ export function AuthoritiesScreen({ route, navigation }: Props) {
     .filter(a => !sol.presentIds.includes(a.id))
     .filter(a => !termoBusca || a.nome.toLowerCase().includes(termoBusca) || ESFERA[a.esfera as EsferaKey]?.label.toLowerCase().includes(termoBusca));
 
-  const add = (id: string) => updateCeremony({ ...sol, presentIds: [...sol.presentIds, id], override: null });
-  const rem = (id: string) => updateCeremony({ ...sol, presentIds: sol.presentIds.filter(x => x !== id), override: null });
+  const add = (id: string) => updateCeremony({ ...sol, presentIds: [...sol.presentIds, id] });
+  const rem = (id: string) => updateCeremony({ ...sol, presentIds: sol.presentIds.filter(x => x !== id) });
 
   const fecharSheet = () => { setSheet(false); setMode('list'); setBusca(''); };
 
@@ -64,7 +64,7 @@ export function AuthoritiesScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Header
         title="Autoridades presentes"
         subtitle={`${prot.ordem.length} confirmadas · ordenadas por precedência`}
@@ -138,8 +138,12 @@ export function AuthoritiesScreen({ route, navigation }: Props) {
               </View>
             </Field>
             <View style={styles.formActions}>
-              <Button full variant="ghost" onPress={() => setMode('list')}>Cancelar</Button>
-              <Button full variant="primary" icon="check" onPress={salvarNova} disabled={fCargo.trim().length < 2}>Salvar</Button>
+              <View style={{ flex: 1 }}>
+                <Button full variant="ghost" onPress={() => setMode('list')}>Cancelar</Button>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button full variant="primary" icon="check" onPress={salvarNova} disabled={fCargo.trim().length < 2}>Salvar</Button>
+              </View>
             </View>
           </View>
         ) : (
@@ -204,7 +208,7 @@ export function AuthoritiesScreen({ route, navigation }: Props) {
         message={confirmDel ? `"${confirmDel.nome}" será removida do catálogo de cargos. Esta ação não pode ser desfeita.` : ''}
         confirmLabel="Excluir"
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

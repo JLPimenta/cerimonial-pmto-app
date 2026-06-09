@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParams } from '../navigation/types';
 import { Colors } from '../constants/colors';
@@ -62,7 +62,14 @@ export function CeremonyDetailScreen({ route, navigation }: Props) {
 
         {/* Hero */}
         <Card pad={17}>
-          <Text style={styles.heroNome}>{sol.nome}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <Text style={[styles.heroNome, { flex: 1 }]}>{sol.nome}</Text>
+            {!noPassado && (
+              <TouchableOpacity onPress={() => navigation.navigate('NewCeremony', { id: sol.id })} style={{ padding: 4, marginRight: -4, marginTop: -4 }}>
+                <Icon name="edit" size={22} color={Colors.azul} />
+              </TouchableOpacity>
+            )}
+          </View>
           <View style={{ gap: 9 }}>
             <Linha icon="location_on" txt={`${sol.local} · ${sol.cidade}`} />
             <Linha icon={sol.tipoLocal === 'auditorio' ? 'meeting_room' : 'park'} txt={sol.tipoLocal === 'auditorio' ? 'Auditório' : 'Local aberto / pátio'} />
