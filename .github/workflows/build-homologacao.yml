@@ -77,27 +77,6 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
 
-      # Executa manualmente o mesmo script Node que o ExpoAutolinkingPlugin
-      # chama durante a fase de configuração do Gradle.
-      # Mantido para diagnóstico; remover após o build estabilizar.
-      - name: Diagnose – Expo autolinking (pre-Gradle check)
-        env:
-          EXPO_PROJECT_ROOT: ${{ github.workspace }}
-        run: |
-          AUTOLINKING_SCRIPT="${{ github.workspace }}/node_modules/expo-modules-autolinking/build/index.js"
-          if [ -f "$AUTOLINKING_SCRIPT" ]; then
-            echo "✅ Script encontrado"
-          else
-            echo "❌ Script NÃO encontrado em: $AUTOLINKING_SCRIPT"
-            ls "${{ github.workspace }}/node_modules/expo-modules-autolinking/" 2>&1 || echo "Pacote não encontrado"
-            exit 1
-          fi
-          node "$AUTOLINKING_SCRIPT" android-resolve \
-            --project-root "${{ github.workspace }}" \
-            --json 2>&1 \
-            && echo "✅ Autolinking OK" \
-            || (echo "❌ Autolinking FALHOU com exit code $?" && exit 1)
-
       - name: Build Release APK
         working-directory: android
         env:
