@@ -11,7 +11,7 @@ import { Colors } from '../constants/colors';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/ui/Icon';
-import { computarProtocolo, disporCadeiras } from '../domain/protocolRules';
+import { computarProtocolo, disporCadeiras, reconciliarOrdem } from '../domain/protocolRules';
 import { ordemPronunciamentos } from '../domain/speechOrder';
 import { fmtData, termoTribuna } from '../domain/dateUtils';
 import { ESFERA } from '../domain/catalog';
@@ -42,6 +42,9 @@ export function ExportScreen({ route, navigation }: Props) {
   const fala = ordemPronunciamentos(prot);
   const termo = termoTribuna(sol);
 
+  // Reconcile override with current presentIds
+  const ordemHonra = reconciliarOrdem(sol, prot, authById);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
@@ -49,9 +52,10 @@ export function ExportScreen({ route, navigation }: Props) {
 
   const gerarPDF = async () => {
     try {
-      const cadeiras = disporCadeiras(prot.ordem.slice(0, sol.totalCadeiras), sol.totalCadeiras, sol.customLayout, id => authById(id));
-      const plateia = prot.ordem.slice(sol.totalCadeiras);
-      const html = buildPdfHtml(sol, ti, prot, cadeiras, plateia, termo);
+      const naTribuna = ordemHonra.slice(0, sol.totalCadeiras);
+      const cadeiras = disporCadeiras(naTribuna, sol.totalCadeiras);
+      const plateia = ordemHonra.slice(sol.totalCadeiras);
+      const html = buildPdfHtml(sol, ti, prot, ordemHonra, cadeiras, plateia, termo);
       const { base64 } = await Print.printToFileAsync({ html, base64: true });
       if (!base64) throw new Error('Falha ao gerar base64');
       
@@ -104,7 +108,7 @@ export function ExportScreen({ route, navigation }: Props) {
 
   const gerarRoteiro = async () => {
     try {
-      const html = buildRoteiroHtml(sol, prot, fala, termo);
+      const html = buildRoteiroHtml(sol, prot, ordemHonra, fala, termo);
       const { base64 } = await Print.printToFileAsync({ html, base64: true });
       if (!base64) throw new Error('Falha ao gerar base64');
       
@@ -160,7 +164,7 @@ export function ExportScreen({ route, navigation }: Props) {
       `Data: ${fmtData(sol.data)} às ${sol.hora}\n` +
       `Local: ${sol.cidade}\n\n` +
       `*${termo}*\n` +
-      prot.ordem.slice(0, sol.totalCadeiras).map((a: any, i: number) => `${i + 1}. ${a.nome}`).join('\n') +
+      ordemHonra.slice(0, sol.totalCadeiras).map((a: any, i: number) => `${i + 1}. ${a.nome}`).join('\n') +
       `\n\n*Pronunciamentos*\n` +
       fala.map((f: any, i: number) => `${f.momento}: ${f.autoridade.nome}`).join('\n');
       
@@ -250,11 +254,11 @@ function PreviewMeta({ icon, txt }: { icon: string; txt: string }) {
 
 // ─── HTML Generators ─────────────────────────────────────────────────────────
 
-function buildPdfHtml(sol: any, ti: any, prot: any, cadeiras: any[], plateia: any[], termo: string): string {
+function buildPdfHtml(sol: any, ti: any, prot: any, ordemHonra: any[], cadeiras: any[], plateia: any[], termo: string): string {
   const rankPorId: Record<string, number> = {};
-  prot.ordem.forEach((a: any, i: number) => { rankPorId[a.id] = i + 1; });
+  ordemHonra.forEach((a: any, i: number) => { rankPorId[a.id] = i + 1; });
 
-  const rows = prot.ordem.map((a: any, i: number) => `
+  const rows = ordemHonra.map((a: any, i: number) => `
     <tr style="background:${i === 0 ? '#F7EFDC' : i % 2 === 0 ? '#f9f9f9' : '#fff'}">
       <td style="padding:8px 12px;font-weight:700;color:${i === 0 ? '#8A6314' : '#15407C'}">${i + 1}</td>
       <td style="padding:8px 12px;font-weight:600">${a.nome}</td>
@@ -327,7 +331,7 @@ function buildPdfHtml(sol: any, ti: any, prot: any, cadeiras: any[], plateia: an
   </body></html>`;
 }
 
-function buildRoteiroHtml(sol: any, prot: any, fala: any[], termo: string): string {
+function buildRoteiroHtml(sol: any, prot: any, ordemHonra: any[], fala: any[], termo: string): string {
   const pronunciamentos = fala.map((f, i) => `
     <div style="margin-bottom:16px;padding:12px 16px;background:${i === fala.length - 1 ? '#F7EFDC' : '#EAF0F9'};border-radius:8px">
       <p style="font-size:11px;font-weight:700;text-transform:uppercase;color:${i === fala.length - 1 ? '#8A6314' : '#15407C'};margin:0 0 4px">${f.momento}</p>
@@ -346,7 +350,7 @@ function buildRoteiroHtml(sol: any, prot: any, fala: any[], termo: string): stri
     <h1>${sol.nome}</h1>
     <p style="color:#4A5366;font-size:13px">${fmtData(sol.data)} · ${sol.hora} · ${sol.cidade}</p>
     <h2>Composição da ${termo}</h2>
-    ${prot.ordem.slice(0, sol.totalCadeiras).map((a: any, i: number) => `<p style="margin:4px 0"><strong>${i + 1}.</strong> ${a.nome} — <em>${prot.papeis[a.id] ?? ''}</em></p>`).join('')}
+    ${ordemHonra.slice(0, sol.totalCadeiras).map((a: any, i: number) => `<p style="margin:4px 0"><strong>${i + 1}.</strong> ${a.nome} — <em>${prot.papeis[a.id] ?? ''}</em></p>`).join('')}
     <h2>Ordem dos Pronunciamentos</h2>
     ${pronunciamentos}
   </body></html>`;

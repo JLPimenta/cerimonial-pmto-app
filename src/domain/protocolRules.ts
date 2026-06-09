@@ -1,4 +1,29 @@
-import type { Authority, ProtocolResult, SeatArrangement } from './types';
+import type { Authority, Ceremony, ProtocolResult, SeatArrangement } from './types';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECONCILIAÇÃO DE OVERRIDE
+// Quando há ajuste manual (override), reconcilia com os presentIds atuais:
+// - Remove IDs que não estão mais presentes
+// - Insere IDs novos (adicionados após o override) na posição protocolar
+// ─────────────────────────────────────────────────────────────────────────────
+export function reconciliarOrdem(
+  sol: Ceremony,
+  prot: ProtocolResult,
+  authById: (id: string) => Authority | undefined,
+): Authority[] {
+  if (!sol.override) return prot.ordem;
+  const presentSet = new Set(sol.presentIds);
+  const cleanOverride = sol.override.filter(id => presentSet.has(id));
+  const overrideSet = new Set(cleanOverride);
+  const missing = sol.presentIds.filter(id => !overrideSet.has(id));
+  const fullIds = [...cleanOverride];
+  for (const id of missing) {
+    const protIdx = prot.ordem.findIndex(a => a.id === id);
+    const insertAt = Math.min(protIdx >= 0 ? protIdx : fullIds.length, fullIds.length);
+    fullIds.splice(insertAt, 0, id);
+  }
+  return fullIds.map(id => authById(id)).filter(Boolean) as Authority[];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REGRA DE OURO DO ANFITRIÃO (PMTO)

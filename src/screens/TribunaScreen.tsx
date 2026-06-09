@@ -10,8 +10,7 @@ import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { TribunaPlanta } from '../components/tribuna/TribunaPlanta';
 import { TribunaLista } from '../components/tribuna/TribunaLista';
-import { computarProtocolo } from '../domain/protocolRules';
-import { disporCadeiras } from '../domain/protocolRules';
+import { computarProtocolo, disporCadeiras, reconciliarOrdem } from '../domain/protocolRules';
 import { termoTribuna } from '../domain/dateUtils';
 import { useCeremonies } from '../hooks/useCeremonies';
 import { useCustomData } from '../hooks/useCustomData';
@@ -31,9 +30,8 @@ export function TribunaScreen({ route, navigation }: Props) {
   const prot = computarProtocolo(presentes);
   const termo = termoTribuna(sol);
 
-  const ordemHonra = sol.override
-    ? sol.override.map(id => authById(id)).filter(Boolean) as Authority[]
-    : prot.ordem;
+  // Reconcile override with current presentIds
+  const ordemHonra = reconciliarOrdem(sol, prot, authById);
 
   const naTribuna = ordemHonra.slice(0, sol.totalCadeiras);
   const naPlateia = ordemHonra.slice(sol.totalCadeiras);

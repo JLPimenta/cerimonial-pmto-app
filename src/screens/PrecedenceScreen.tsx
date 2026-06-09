@@ -8,7 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { ESFERA } from '../domain/catalog';
-import { computarProtocolo } from '../domain/protocolRules';
+import { computarProtocolo, reconciliarOrdem } from '../domain/protocolRules';
 import { useCeremonies } from '../hooks/useCeremonies';
 import { useCustomData } from '../hooks/useCustomData';
 import type { Authority, EsferaKey } from '../domain/types';
@@ -24,17 +24,18 @@ export function PrecedenceScreen({ route, navigation }: Props) {
 
   const presentes = sol.presentIds.map(id => authById(id)).filter(Boolean) as Authority[];
   const prot = computarProtocolo(presentes);
+  const ordemHonra = reconciliarOrdem(sol, prot, authById);
 
   return (
     <View style={styles.container}>
       <Header
         title="Ordem de precedência"
-        subtitle={`${prot.ordem.length} autoridades · ordem protocolar`}
+        subtitle={`${ordemHonra.length} autoridades · ${sol.override ? 'ordem ajustada manualmente' : 'ordem protocolar'}`}
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {prot.ordem.map((a, i) => {
+        {ordemHonra.map((a, i) => {
           const naTribuna = i < sol.totalCadeiras;
           return (
             <View key={a.id} style={[styles.row, i === 0 ? styles.rowFirst : undefined]}>

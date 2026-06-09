@@ -44,8 +44,31 @@ export function AuthoritiesScreen({ route, navigation }: Props) {
     .filter(a => !sol.presentIds.includes(a.id))
     .filter(a => !termoBusca || a.nome.toLowerCase().includes(termoBusca) || ESFERA[a.esfera as EsferaKey]?.label.toLowerCase().includes(termoBusca));
 
-  const add = (id: string) => updateCeremony({ ...sol, presentIds: [...sol.presentIds, id] });
-  const rem = (id: string) => updateCeremony({ ...sol, presentIds: sol.presentIds.filter(x => x !== id) });
+  const add = (id: string) => {
+    const newPresentIds = [...sol.presentIds, id];
+    let newOverride = sol.override;
+    if (newOverride) {
+      // Compute where the new authority sits in protocol order
+      const newAuth = authById(id);
+      if (newAuth) {
+        const allPresent = newPresentIds.map(pid => authById(pid)).filter(Boolean) as any[];
+        const newProt = computarProtocolo(allPresent);
+        const protIndex = newProt.ordem.findIndex((a: any) => a.id === id);
+        // Insert into override at the protocol-equivalent position, clamped to array length
+        const insertAt = Math.min(protIndex >= 0 ? protIndex : newOverride.length, newOverride.length);
+        newOverride = [...newOverride];
+        newOverride.splice(insertAt, 0, id);
+      } else {
+        newOverride = [...newOverride, id];
+      }
+    }
+    updateCeremony({ ...sol, presentIds: newPresentIds, override: newOverride });
+  };
+  const rem = (id: string) => {
+    const newPresentIds = sol.presentIds.filter(x => x !== id);
+    const newOverride = sol.override ? sol.override.filter(x => x !== id) : null;
+    updateCeremony({ ...sol, presentIds: newPresentIds, override: newOverride });
+  };
 
   const fecharSheet = () => { setSheet(false); setMode('list'); setBusca(''); };
 
