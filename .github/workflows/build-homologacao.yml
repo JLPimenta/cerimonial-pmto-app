@@ -55,7 +55,8 @@ jobs:
         env:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
-        run: ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-build.log; exit ${PIPESTATUS[0]}
+          EXPO_PROJECT_ROOT: ${{ github.workspace }}
+        run: ./gradlew assembleRelease --no-daemon --info 2>&1 | tee /tmp/gradle-build.log; exit ${PIPESTATUS[0]}
 
       - name: Rename APK
         run: |
