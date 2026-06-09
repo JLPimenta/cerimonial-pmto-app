@@ -90,7 +90,7 @@ jobs:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
           EXPO_PROJECT_ROOT: ${{ github.workspace }}
-        # --warn: logs de erro sem overhead de --stacktrace
+          PATH: ${{ env.PATH }}
         run: ./gradlew assembleRelease --no-daemon --warn 2>&1
 
       - name: Rename APK
