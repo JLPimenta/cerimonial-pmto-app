@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'npm'                   # cache npm via package-lock.json (~1-2 min economizados)
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -34,14 +34,22 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # Cache Gradle wrapper binary (~120MB, evita download a cada run)
+      # Cache NDK 27 (~1GB, maior download unitário da pipeline)
+      # Chave fixa porque a versão do NDK não muda entre commits normais
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/27.1.12297006
+          key: android-ndk-27.1.12297006
+
+      # Cache Gradle wrapper binary (~120MB)
       - name: Cache Gradle wrapper
         uses: actions/cache@v4
         with:
           path: ~/.gradle/wrapper
           key: gradle-wrapper-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
-      # Cache dependências Maven/Gradle (~500MB+, o maior gargalo)
+      # Cache dependências Maven/Gradle (~500MB+)
       - name: Cache Gradle caches
         uses: actions/cache@v4
         with:
@@ -70,31 +78,20 @@ jobs:
         run: chmod +x gradlew
 
       # Executa manualmente o mesmo script Node que o ExpoAutolinkingPlugin
-      # chama durante a fase de configuração do Gradle. Se falhar aqui,
-      # vemos o stderr real antes do Gradle suprimi-lo.
+      # chama durante a fase de configuração do Gradle.
+      # Mantido para diagnóstico; remover após o build estabilizar.
       - name: Diagnose – Expo autolinking (pre-Gradle check)
         env:
           EXPO_PROJECT_ROOT: ${{ github.workspace }}
         run: |
-          echo "=== Ambiente ==="
-          node --version
-          echo "NODE_PATH: ${NODE_PATH:-não definido}"
-          echo "EXPO_PROJECT_ROOT: $EXPO_PROJECT_ROOT"
-
           AUTOLINKING_SCRIPT="${{ github.workspace }}/node_modules/expo-modules-autolinking/build/index.js"
-          echo ""
-          echo "=== Verificando script de autolinking ==="
           if [ -f "$AUTOLINKING_SCRIPT" ]; then
-            echo "✅ Script encontrado: $AUTOLINKING_SCRIPT"
+            echo "✅ Script encontrado"
           else
             echo "❌ Script NÃO encontrado em: $AUTOLINKING_SCRIPT"
-            echo "Listando node_modules/expo-modules-autolinking/:"
             ls "${{ github.workspace }}/node_modules/expo-modules-autolinking/" 2>&1 || echo "Pacote não encontrado"
             exit 1
           fi
-
-          echo ""
-          echo "=== Executando autolinking android-resolve ==="
           node "$AUTOLINKING_SCRIPT" android-resolve \
             --project-root "${{ github.workspace }}" \
             --json 2>&1 \
@@ -107,7 +104,8 @@ jobs:
           APP_ENV: homologacao
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
           EXPO_PROJECT_ROOT: ${{ github.workspace }}
-        run: ./gradlew assembleRelease --no-daemon --info 2>&1 | tee /tmp/gradle-build.log; exit ${PIPESTATUS[0]}
+        # --warn: mantém logs de erro sem o overhead massivo de --info
+        run: ./gradlew assembleRelease --no-daemon --warn
 
       - name: Rename APK
         run: |
