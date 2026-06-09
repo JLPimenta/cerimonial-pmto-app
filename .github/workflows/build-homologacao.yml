@@ -50,15 +50,6 @@ jobs:
           restore-keys: |
             gradle-caches-
 
-      # Cache Android Build outputs (reutiliza compilação incremental entre runs)
-      - name: Cache Android build
-        uses: actions/cache@v4
-        with:
-          path: android/app/build
-          key: android-build-${{ hashFiles('android/**', 'package-lock.json', 'app.json') }}
-          restore-keys: |
-            android-build-
-
       - name: Install dependencies
         run: npm ci
 
@@ -77,6 +68,38 @@ jobs:
       - name: Make gradlew executable
         working-directory: android
         run: chmod +x gradlew
+
+      # Executa manualmente o mesmo script Node que o ExpoAutolinkingPlugin
+      # chama durante a fase de configuração do Gradle. Se falhar aqui,
+      # vemos o stderr real antes do Gradle suprimi-lo.
+      - name: Diagnose – Expo autolinking (pre-Gradle check)
+        env:
+          EXPO_PROJECT_ROOT: ${{ github.workspace }}
+        run: |
+          echo "=== Ambiente ==="
+          node --version
+          echo "NODE_PATH: ${NODE_PATH:-não definido}"
+          echo "EXPO_PROJECT_ROOT: $EXPO_PROJECT_ROOT"
+
+          AUTOLINKING_SCRIPT="${{ github.workspace }}/node_modules/expo-modules-autolinking/build/index.js"
+          echo ""
+          echo "=== Verificando script de autolinking ==="
+          if [ -f "$AUTOLINKING_SCRIPT" ]; then
+            echo "✅ Script encontrado: $AUTOLINKING_SCRIPT"
+          else
+            echo "❌ Script NÃO encontrado em: $AUTOLINKING_SCRIPT"
+            echo "Listando node_modules/expo-modules-autolinking/:"
+            ls "${{ github.workspace }}/node_modules/expo-modules-autolinking/" 2>&1 || echo "Pacote não encontrado"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Executando autolinking android-resolve ==="
+          node "$AUTOLINKING_SCRIPT" android-resolve \
+            --project-root "${{ github.workspace }}" \
+            --json 2>&1 \
+            && echo "✅ Autolinking OK" \
+            || (echo "❌ Autolinking FALHOU com exit code $?" && exit 1)
 
       - name: Build Release APK
         working-directory: android
